@@ -27,7 +27,7 @@ let pool;
 // Session management for tracking user states
 const userSessions = new Map();
 
-// Constants
+// Constants for user states
 const STATES = {
     IDLE: 'idle',
     SEARCHING_NIM: 'searching_nim',
@@ -38,9 +38,9 @@ const STATES = {
 const dbQueries = {
     async findStudentsByNIM(nim) {
         try {
-            // Menggunakan LIKE untuk pencarian parsial
+            // Query disesuaikan dengan struktur tabel univ yang baru
             const [rows] = await pool.query(
-                'SELECT StudentID, StudentName, StudentCity, StudentNIM, StudentIPK FROM univ WHERE StudentNIM LIKE ?',
+                'SELECT id, nama, nim, asal_kota, ipk FROM univ WHERE nim LIKE ?',
                 [`%${nim}%`]
             );
             return rows;
@@ -82,11 +82,11 @@ const ui = {
         return `
 📋 *Data Mahasiswa*
 
-🆔 ID: ${student.StudentID}
-👤 Nama: ${student.StudentName}
-📍 Asal Kota: ${student.StudentCity}
-🎓 NIM: ${student.StudentNIM}
-⭐ IPK: ${student.StudentIPK}
+🆔 ID: ${student.id}
+👤 Nama: ${student.nama}
+📍 Asal Kota: ${student.asal_kota}
+🎓 NIM: ${student.nim}
+⭐ IPK: ${student.ipk}
         `;
     },
     
