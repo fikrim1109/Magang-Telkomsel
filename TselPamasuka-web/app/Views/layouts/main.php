@@ -7,9 +7,9 @@
     <title>CRUD Pegawai</title>
 
     <!-- Bootstrap CSS -->
-    <!-- Alternatif CDN jika file lokal tidak terbaca -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="/public/assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="<?= base_url('assets/css/bootstrap.min.css') ?>">
+
     <style>
       html, body {
         height: 100%;
@@ -23,22 +23,20 @@
 </head>
 
 <body class="bg-body-tertiary">
-<?= $this->include('layouts/navbar'); ?>
+    <?= $this->include('layouts/navbar'); ?>
 
-<div class="container py-5">
-    <?= $this->renderSection('content'); ?>
-</div>
+    <div class="container py-5">
+        <?= $this->renderSection('content'); ?>
+    </div>
 
-<footer class="footer mt-auto py-3 bg-secondary">
-  <div class="container text-center">
-    <span class="text-white">© <?= date("Y"); ?> TselPamasuka</span>
-  </div>
-</footer>
+    <footer class="footer mt-auto py-3 bg-secondary">
+      <div class="container text-center">
+        <span class="text-white">© <?= date("Y"); ?> TselPamasuka</span>
+      </div>
+    </footer>
 
-<!-- Bootstrap JS -->
-<!-- Alternatif CDN jika file lokal tidak terbaca -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/public/assets/js/bootstrap.bundle.min.js"></script>
-
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="<?= base_url('assets/js/bootstrap.bundle.min.js') ?>"></script>
 </body>
 </html>
