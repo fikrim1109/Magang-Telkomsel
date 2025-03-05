@@ -2,7 +2,7 @@
   <div class="container">
     <a class="navbar-brand d-flex align-items-center" href="#">
       <img src="<?= base_url('assets/img/Tsel.png') ?>" alt="Telkomsel Logo" class="navbar-brand-img me-2" width="40" height="60">
-      TselPamasuka
+      Telkomsel
     </a>
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown" aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
