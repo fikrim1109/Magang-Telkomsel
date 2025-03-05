@@ -1,11 +1,41 @@
 const { Telegraf, Markup } = require('telegraf');
+const express = require('express');
+const bodyParser = require('body-parser');
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
-// Initialize bot
+// Inisialisasi Telegraf bot
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Database configuration
+// Inisialisasi Express app untuk endpoint notifikasi
+const app = express();
+app.use(bodyParser.json());
+
+// Variabel global untuk menyimpan recent messages
+const recentMessages = [];
+const MAX_RECENT_MESSAGES = 10;
+
+// Endpoint untuk menerima notifikasi dari CodeIgniter (misal: update data pegawai)
+app.post('/notify', async (req, res) => {
+    const { message } = req.body;
+    try {
+        await bot.telegram.sendMessage(process.env.TELEGRAM_CHAT_ID, message);
+        // Simpan pesan ke recentMessages dengan timestamp
+        recentMessages.push({ timestamp: new Date(), message });
+        if (recentMessages.length > MAX_RECENT_MESSAGES) {
+            recentMessages.shift();
+        }
+        res.json({ status: 'success' });
+    } catch (error) {
+        console.error('❌ Error sending message:', error);
+        res.status(500).json({ status: 'error', error: error.message });
+    }
+});
+
+// Jalankan Express server pada port 3000 (sesuaikan jika perlu)
+app.listen(3000, () => console.log('Notification endpoint running on port 3000'));
+
+// Konfigurasi database untuk bot
 let pool;
 (async () => {
     try {
@@ -24,21 +54,20 @@ let pool;
     }
 })();
 
-// Session management for tracking user states
+// Session management untuk melacak state user
 const userSessions = new Map();
 
-// Constants for user states
+// Constants untuk state user
 const STATES = {
     IDLE: 'idle',
     SEARCHING_NIM: 'searching_nim',
     SEARCHING_IMAGE: 'searching_image'
 };
 
-// Database query functions
+// Fungsi query ke database
 const dbQueries = {
     async findStudentsByNIM(nim) {
         try {
-            // Query disesuaikan dengan struktur tabel univ yang baru
             const [rows] = await pool.query(
                 'SELECT id, nama, nim, asal_kota, ipk FROM univ WHERE nim LIKE ?',
                 [`%${nim}%`]
@@ -52,7 +81,6 @@ const dbQueries = {
     
     async findImageByQuery(query) {
         try {
-            // Query untuk mencari gambar berdasarkan ImageKey
             const [rows] = await pool.query(
                 'SELECT ImageID, ImageURL, ImageKey FROM image WHERE ImageKey LIKE ?',
                 [`%${query}%`]
@@ -65,7 +93,7 @@ const dbQueries = {
     }
 };
 
-// UI Components
+// Komponen UI untuk bot
 const ui = {
     mainMenu(message = 'Selamat datang di bot TselPamasuka!') {
         return {
@@ -73,6 +101,7 @@ const ui = {
             keyboard: Markup.inlineKeyboard([
                 [Markup.button.callback('🔍 Pencarian NIM', 'action:nim_search')],
                 [Markup.button.callback('🖼️ Pencarian Gambar', 'action:image_search')],
+                [Markup.button.callback('🕒 Recent Message', 'action:recent_messages')],
                 [Markup.button.callback('📌 Menu 3', 'action:menu3')]
             ])
         };
@@ -118,10 +147,9 @@ const ui = {
     }
 };
 
-// Helper functions
+// Fungsi pembantu untuk state management dan validasi
 const helpers = {
     validateNIMInput(nim) {
-        // Validasi input NIM: minimal 3 karakter alfanumerik
         return /^[a-zA-Z0-9]{3,}$/.test(nim);
     },
     
@@ -145,7 +173,7 @@ const helpers = {
     }
 };
 
-// Command handler: Start
+// Command handler: /start
 bot.start((ctx) => {
     const { text, keyboard } = ui.mainMenu();
     ctx.reply(text, keyboard);
@@ -167,6 +195,18 @@ bot.action(/^action:(.+)$/, (ctx) => {
             ctx.reply('Masukkan keyword gambar yang ingin dicari:');
             break;
             
+        case 'recent_messages':
+            // Tampilkan recent messages
+            if (recentMessages.length > 0) {
+                const messageList = recentMessages
+                    .map((msg, idx) => `${idx + 1}. ${msg.timestamp.toLocaleString()} - ${msg.message}`)
+                    .join('\n');
+                ctx.replyWithMarkdown(`*Recent Messages:*\n${messageList}`);
+            } else {
+                ctx.reply('Tidak ada pesan terbaru.');
+            }
+            break;
+            
         case 'menu3':
             ctx.reply('🚧 Menu 3 akan segera tersedia.');
             ctx.reply(ui.mainMenu().text, ui.mainMenu().keyboard);
@@ -181,7 +221,6 @@ bot.action(/^action:(.+)$/, (ctx) => {
             ctx.reply(ui.mainMenu().text, ui.mainMenu().keyboard);
     }
     
-    // Hapus loading state pada tombol
     ctx.answerCbQuery().catch(console.error);
 });
 
@@ -219,7 +258,7 @@ bot.action(/^ipage:(\d+)$/, async (ctx) => {
 
 // Fungsi untuk menampilkan hasil pencarian mahasiswa dengan pagination
 async function displayStudentSearchResults(ctx, results, page = 1) {
-    const pageSize = 1; // Menampilkan 1 hasil per halaman
+    const pageSize = 1;
     const totalPages = Math.ceil(results.length / pageSize);
     const startIndex = (page - 1) * pageSize;
     const endIndex = Math.min(startIndex + pageSize, results.length);
@@ -243,7 +282,7 @@ async function displayStudentSearchResults(ctx, results, page = 1) {
 
 // Fungsi untuk menampilkan hasil pencarian gambar dengan pagination
 async function displayImageSearchResults(ctx, results, page = 1) {
-    const pageSize = 1; // Menampilkan 1 hasil per halaman
+    const pageSize = 1;
     const totalPages = Math.ceil(results.length / pageSize);
     const startIndex = (page - 1) * pageSize;
     const endIndex = Math.min(startIndex + pageSize, results.length);
@@ -272,7 +311,6 @@ bot.on('text', async (ctx) => {
     const messageText = ctx.message.text;
     
     if (currentState === STATES.SEARCHING_NIM) {
-        // Reset state setelah memproses
         helpers.setState(chatId, STATES.IDLE);
         const nimQuery = messageText.trim().toUpperCase();
         
@@ -298,7 +336,6 @@ bot.on('text', async (ctx) => {
             await ctx.reply(text, keyboard);
         }
     } else if (currentState === STATES.SEARCHING_IMAGE) {
-        // Reset state setelah memproses
         helpers.setState(chatId, STATES.IDLE);
         const imageQuery = messageText.trim().toLowerCase();
         
