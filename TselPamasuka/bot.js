@@ -9,6 +9,7 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 
 // Inisialisasi Express app untuk endpoint notifikasi
 const app = express();
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 // Variabel global untuk menyimpan recent messages
@@ -32,10 +33,10 @@ app.post('/notify', async (req, res) => {
     }
 });
 
-// Jalankan Express server pada port 3000 (sesuaikan jika perlu)
+// Jalankan Express server pada port 3000
 app.listen(3000, () => console.log('Notification endpoint running on port 3000'));
 
-// Konfigurasi database untuk bot
+// Konfigurasi database untuk bot (gunakan database pegawai_db)
 let pool;
 (async () => {
     try {
@@ -43,7 +44,7 @@ let pool;
             host: process.env.DB_HOST,
             user: process.env.DB_USER,
             password: process.env.DB_PASSWORD,
-            database: 'universitas',
+            database: 'pegawai_db', // sesuaikan dengan nama database pegawai Anda
             waitForConnections: true,
             connectionLimit: 10,
             queueLimit: 0
@@ -60,21 +61,24 @@ const userSessions = new Map();
 // Constants untuk state user
 const STATES = {
     IDLE: 'idle',
-    SEARCHING_NIM: 'searching_nim',
+    SEARCHING_PEGAWAI: 'searching_pegawai',
     SEARCHING_IMAGE: 'searching_image'
 };
 
 // Fungsi query ke database
 const dbQueries = {
-    async findStudentsByNIM(nim) {
+    async findPegawaiByName(nama) {
         try {
             const [rows] = await pool.query(
-                'SELECT id, nama, nim, asal_kota, ipk FROM univ WHERE nim LIKE ?',
-                [`%${nim}%`]
+                `SELECT p.id, p.nama_pegawai, j.nama_jabatan, p.alamat, p.telepon
+                 FROM pegawai p
+                 JOIN jabatan j ON p.jabatan_id = j.id
+                 WHERE p.nama_pegawai LIKE ?`,
+                [`%${nama}%`]
             );
             return rows;
         } catch (error) {
-            console.error('❌ Kesalahan saat mengakses database:', error);
+            console.error('❌ Kesalahan saat mengakses database pegawai:', error);
             return [];
         }
     },
@@ -99,7 +103,7 @@ const ui = {
         return {
             text: message,
             keyboard: Markup.inlineKeyboard([
-                [Markup.button.callback('🔍 Pencarian NIM', 'action:nim_search')],
+                [Markup.button.callback('🔍 Pencarian Pegawai', 'action:pegawai_search')],
                 [Markup.button.callback('🖼️ Pencarian Gambar', 'action:image_search')],
                 [Markup.button.callback('🕒 Recent Message', 'action:recent_messages')],
                 [Markup.button.callback('📌 Menu 3', 'action:menu3')]
@@ -107,15 +111,16 @@ const ui = {
         };
     },
     
-    studentInfo(student) {
+    // Tampilkan nama_jabatan, bukan jabatan_id
+    pegawaiInfo(pegawai) {
         return `
-📋 *Data Mahasiswa*
+📋 *Data Pegawai*
 
-🆔 ID: ${student.id}
-👤 Nama: ${student.nama}
-📍 Asal Kota: ${student.asal_kota}
-🎓 NIM: ${student.nim}
-⭐ IPK: ${student.ipk}
+🆔 ID: ${pegawai.id}
+👤 Nama: ${pegawai.nama_pegawai}
+🏢 Jabatan: ${pegawai.nama_jabatan}
+🏠 Alamat: ${pegawai.alamat}
+📞 Telepon: ${pegawai.telepon}
         `;
     },
     
@@ -149,8 +154,9 @@ const ui = {
 
 // Fungsi pembantu untuk state management dan validasi
 const helpers = {
-    validateNIMInput(nim) {
-        return /^[a-zA-Z0-9]{3,}$/.test(nim);
+    // Validasi input minimal 3 karakter
+    validatePegawaiInput(input) {
+        return input.length >= 3;
     },
     
     setState(chatId, state, data = {}) {
@@ -185,9 +191,9 @@ bot.action(/^action:(.+)$/, (ctx) => {
     const chatId = ctx.chat.id;
     
     switch (action) {
-        case 'nim_search':
-            helpers.setState(chatId, STATES.SEARCHING_NIM);
-            ctx.reply('Masukkan NIM atau sebagian NIM yang ingin dicari:');
+        case 'pegawai_search':
+            helpers.setState(chatId, STATES.SEARCHING_PEGAWAI);
+            ctx.reply('Masukkan nama pegawai yang ingin dicari:');
             break;
             
         case 'image_search':
@@ -224,14 +230,14 @@ bot.action(/^action:(.+)$/, (ctx) => {
     ctx.answerCbQuery().catch(console.error);
 });
 
-// Pagination handler untuk hasil pencarian mahasiswa
+// Pagination handler untuk hasil pencarian pegawai
 bot.action(/^page:(\d+)$/, async (ctx) => {
     const pageNumber = parseInt(ctx.match[1]);
     const chatId = ctx.chat.id;
     const sessionData = helpers.getSessionData(chatId);
     
     if (sessionData.searchResults && sessionData.searchResults.length > 0) {
-        await displayStudentSearchResults(ctx, sessionData.searchResults, pageNumber);
+        await displayPegawaiSearchResults(ctx, sessionData.searchResults, pageNumber);
     } else {
         ctx.reply('❌ Tidak ada hasil pencarian yang tersedia.');
         ctx.reply(ui.mainMenu().text, ui.mainMenu().keyboard);
@@ -256,8 +262,8 @@ bot.action(/^ipage:(\d+)$/, async (ctx) => {
     ctx.answerCbQuery().catch(console.error);
 });
 
-// Fungsi untuk menampilkan hasil pencarian mahasiswa dengan pagination
-async function displayStudentSearchResults(ctx, results, page = 1) {
+// Fungsi untuk menampilkan hasil pencarian pegawai dengan pagination
+async function displayPegawaiSearchResults(ctx, results, page = 1) {
     const pageSize = 1;
     const totalPages = Math.ceil(results.length / pageSize);
     const startIndex = (page - 1) * pageSize;
@@ -272,7 +278,7 @@ async function displayStudentSearchResults(ctx, results, page = 1) {
     
     for (let i = startIndex; i < endIndex; i++) {
         await ctx.replyWithMarkdown(
-            ui.studentInfo(results[i]), 
+            ui.pegawaiInfo(results[i]), 
             ui.paginationButtons(page, totalPages, 'page')
         );
     }
@@ -310,28 +316,28 @@ bot.on('text', async (ctx) => {
     const currentState = helpers.getState(chatId);
     const messageText = ctx.message.text;
     
-    if (currentState === STATES.SEARCHING_NIM) {
+    if (currentState === STATES.SEARCHING_PEGAWAI) {
         helpers.setState(chatId, STATES.IDLE);
-        const nimQuery = messageText.trim().toUpperCase();
+        const pegawaiQuery = messageText.trim();
         
-        if (helpers.validateNIMInput(nimQuery)) {
+        if (helpers.validatePegawaiInput(pegawaiQuery)) {
             try {
-                const students = await dbQueries.findStudentsByNIM(nimQuery);
-                if (students && students.length > 0) {
-                    await displayStudentSearchResults(ctx, students);
+                const pegawai = await dbQueries.findPegawaiByName(pegawaiQuery);
+                if (pegawai && pegawai.length > 0) {
+                    await displayPegawaiSearchResults(ctx, pegawai);
                 } else {
-                    await ctx.reply('❌ Data mahasiswa tidak ditemukan');
+                    await ctx.reply('❌ Data pegawai tidak ditemukan');
                     const { text, keyboard } = ui.mainMenu('Kembali ke menu utama:');
                     await ctx.reply(text, keyboard);
                 }
             } catch (error) {
-                console.error('Error searching student:', error);
-                await ctx.reply('⚠️ Terjadi kesalahan saat mencari data');
+                console.error('Error searching pegawai:', error);
+                await ctx.reply('⚠️ Terjadi kesalahan saat mencari data pegawai');
                 const { text, keyboard } = ui.mainMenu('Kembali ke menu utama:');
                 await ctx.reply(text, keyboard);
             }
         } else {
-            await ctx.reply('❌ Format input tidak valid. Masukkan minimal 3 karakter alfanumerik.');
+            await ctx.reply('❌ Format input tidak valid. Masukkan minimal 3 karakter.');
             const { text, keyboard } = ui.mainMenu('Kembali ke menu utama:');
             await ctx.reply(text, keyboard);
         }
