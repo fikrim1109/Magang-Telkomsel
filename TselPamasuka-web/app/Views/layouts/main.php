@@ -25,9 +25,10 @@
 <body class="bg-body-tertiary">
     <?= $this->include('layouts/navbar'); ?>
 
-    <div class="container py-5" >
+    <div class="container d-flex justify-content-center flex-column flex-grow-1">
         <?= $this->renderSection('content'); ?>
     </div>
+
 
     <footer class="footer mt-auto py-3 bg-danger">
       <div class="container text-center">
